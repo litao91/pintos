@@ -87,9 +87,6 @@ shutdown_reboot (void)
 void
 shutdown_power_off (void)
 {
-  const char s[] = "Shutdown";
-  const char *p;
-
 #ifdef FILESYS
   filesys_done ();
 #endif
@@ -99,19 +96,21 @@ shutdown_power_off (void)
   printf ("Powering off...\n");
   serial_flush ();
 
-  /* This is a special power-off sequence supported by Bochs and
-     QEMU, but not by physical hardware. */
-  for (p = s; *p != '\0'; p++)
-    outb (0x8900, *p);
+  asm volatile ("cli");
+  for (;;)
+    {
+      // (phony) ACPI shutdown (http://forum.osdev.org/viewtopic.php?t=16990)
+      // Works for qemu and bochs.
+      outw (0xB004, 0x2000);
 
-  /* This will power off a VMware VM if "gui.exitOnCLIHLT = TRUE"
-     is set in its configuration file.  (The "pintos" script does
-     that automatically.)  */
-  asm volatile ("cli; hlt" : : : "memory");
+      // Magic shutdown code for bochs and qemu.
+      char *s;
+      for (*s = "Shutdown"; *s; ++s)
+        outb (0x8900, *s);
 
-  /* None of those worked. */
-  printf ("still running...\n");
-  for (;;);
+      // Magic code for VMWare. Also a hard lock.
+      asm volatile ("cli; hlt");
+    }
 }
 
 /* Print statistics about Pintos execution. */
