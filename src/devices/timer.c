@@ -102,6 +102,7 @@ print_wait_list(void){
     for(e = list_begin(&wait_list); e != list_end(&wait_list);
             e = list_next(e)) {
         struct thread* t = list_entry(e, struct thread, allelem);
+        printf("tid: %d, wake at %" PRIu64 "\n", t->tid, t->sleep_wake_tick);
     }
 }
 
@@ -117,14 +118,16 @@ timer_sleep (int64_t ticks)
   // disable interrupt to avoid preemption
   enum intr_level old_level = intr_disable ();
   struct thread* cur = thread_current();
+  //printf("sleeping %d\n", cur->tid);
 
   // set the time to wake
   cur->sleep_wake_tick  = wake_time;
   //block it
   //insert into wait list
   list_insert_ordered(&wait_list, &(cur->allelem), wait_list_less_func, NULL);
-  print_wait_list();
+  //print_wait_list();
 
+  //printf("blocking %d\n", cur->tid);
   thread_block();
   intr_set_level(old_level);
 }
@@ -211,7 +214,10 @@ wake_sleep_threads(void) {
         t = list_entry(e, struct thread, allelem);
         // the time is overdued
         if(t->sleep_wake_tick <= cur_ticks) {
-            thread_unblock(t);
+            //printf("unblocking from timer: %d, priority %d\n", t->tid, t->priority);
+            if(t->status == THREAD_BLOCKED) {
+                thread_unblock(t);
+            }
             list_pop_front(&wait_list);
         }else {
             break;
