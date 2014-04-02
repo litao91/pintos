@@ -111,6 +111,9 @@ print_wait_list(void){
 void
 timer_sleep (int64_t ticks)
 {
+    if(ticks < 0) {
+        return;
+    }
   int64_t start = timer_ticks ();
   int64_t wake_time = start + ticks;
 
@@ -210,7 +213,7 @@ wake_sleep_threads(void) {
     struct list_elem *e;
     struct thread* t;
     while(!list_empty(&wait_list)) {
-        e = list_next(list_head(&wait_list));
+        e = list_front(&wait_list);
         t = list_entry(e, struct thread, allelem);
         // the time is overdued
         if(t->sleep_wake_tick <= cur_ticks) {

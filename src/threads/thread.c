@@ -72,7 +72,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 static bool priority_less_func(const struct list_elem* a, const struct list_elem* b, void* aux);
-static void update_ready_list(void);
+static void preempt_on_higher_priority(void);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -211,8 +211,20 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+  preempt_on_higher_priority();
+//  thread_yield();
 
   return tid;
+}
+
+static void preempt_on_higher_priority(void) {
+    struct thread* cur = thread_current();
+    struct thread* top =list_entry(list_front(&ready_list), struct thread, elem);
+    //printf("cur priority: %d top %d\n", cur->priority, top->priority);
+    if(cur->priority < top->priority) {
+        //printf("yielding");
+        thread_yield();
+    }
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -316,6 +328,7 @@ thread_exit (void)
 void
 thread_yield (void)
 {
+
   struct thread *cur = thread_current ();
   enum intr_level old_level;
 
@@ -345,17 +358,14 @@ thread_foreach (thread_action_func *func, void *aux)
       func (t, aux);
     }
 }
-static void
-update_ready_list(void) {
-    list_sort(&ready_list, priority_less_func, 0);
-}
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority)
 {
+    //printf("setting %d to priority %d\n", thread_current()->tid, thread_current()->priority);
   thread_current ()->priority = new_priority;
-  update_ready_list();
+  preempt_on_higher_priority();
 
 }
 
