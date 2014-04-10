@@ -115,11 +115,12 @@ timer_sleep (int64_t ticks)
         return;
     }
   int64_t start = timer_ticks ();
-  int64_t wake_time = start + ticks;
 
   ASSERT (intr_get_level () == INTR_ON);
   // disable interrupt to avoid preemption
   enum intr_level old_level = intr_disable ();
+
+  int64_t wake_time = start + ticks;
   struct thread* cur = thread_current();
   //printf("sleeping %d\n", cur->tid);
 

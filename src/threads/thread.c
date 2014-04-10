@@ -71,8 +71,6 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-static bool priority_less_func(const struct list_elem* a, const struct list_elem* b, void* aux);
-static void preempt_on_higher_priority(void);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -186,6 +184,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  //printf("thread_create(): %d\n", tid);
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'
@@ -217,7 +216,7 @@ thread_create (const char *name, int priority,
   return tid;
 }
 
-static void preempt_on_higher_priority(void) {
+void preempt_on_higher_priority(void) {
     struct thread* cur = thread_current();
     struct thread* top =list_entry(list_front(&ready_list), struct thread, elem);
     //printf("cur priority: %d top %d\n", cur->priority, top->priority);
@@ -456,7 +455,7 @@ kernel_thread (thread_func *function, void *aux)
   function (aux);       /* Execute the thread function. */
   thread_exit ();       /* If function() returns, kill the thread. */
 }
-
+
 /* Returns the running thread. */
 struct thread *
 running_thread (void)
@@ -492,6 +491,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->base_priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
@@ -512,7 +512,7 @@ alloc_frame (struct thread *t, size_t size)
 /**
  * Implement the ready list as a priority queue
  */
-static bool priority_less_func (const struct list_elem *a,
+bool priority_less_func (const struct list_elem *a,
                              const struct list_elem *b,
                              void* aux UNUSED) {
     struct thread* ta = list_entry(a, struct thread, elem);
@@ -603,6 +603,7 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
+  //printf("Next to run %s with base priority %d \n", next->name, next->priority);
 }
 
 /* Returns a tid to use for a new thread. */
@@ -617,6 +618,10 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+void update_ready_list(void) {
+    list_sort(&ready_list, priority_less_func, 0);
 }
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
