@@ -1,7 +1,7 @@
 #include "devices/timer.h"
 #include <debug.h>
 #include <list.h>
-#include <timer.h>
+#include <list.h>
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
@@ -94,11 +94,41 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks)
 {
-  int64_t start = timer_ticks ();
+    if(ticks <= 0) {
+        return;
+    }
 
+  int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks)
-    thread_yield ();
+  enum intr_level old_level = intr_disable();
+  int64_t sleep_until = start + ticks;
+  struct thread* cur = thread_current();
+  cur->sleep_until = sleep_until;
+  // push to wait list
+  list_push_back(&wait_list, &cur->elem);
+  //block the thread
+  thread_block();
+  /*while (timer_elapsed (start) < ticks)*/
+    /*thread_yield ();*/
+  intr_set_level(old_level);
+}
+
+static void wake_waitings(void) {
+    ASSERT(intr_context()); // must be run on timer tick interruption
+    struct list_elem* e;
+    struct thread* t;
+    int64_t cur = timer_ticks();
+    e = list_begin(&wait_list);
+    while(e != list_end(&wait_list)) {
+        t = list_entry(e, struct thread, elem);
+        if(t->sleep_until > 0 && t->sleep_until <= cur){
+            e = list_remove(e);
+            thread_unblock(t);
+            //printf("%s waked\n", t->name);
+        }else {
+            e = list_next(e);
+        }
+    }
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -177,6 +207,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+  wake_waitings();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
