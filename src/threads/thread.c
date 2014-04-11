@@ -401,7 +401,7 @@ void preempt(void) {
     // Note: it seems that preempt will block the start up. So no preempt
     // if intr is disabled, don't known why yet.
     enum intr_level level = intr_get_level();
-    if(level == INTR_OFF) {
+    if(level == INTR_OFF || list_empty(&ready_list)) {
         return;
     }
     struct thread* cur = thread_current();
@@ -414,6 +414,20 @@ void preempt(void) {
     }else {
         thread_yield(); // otherwise, yield immediately
     }
+}
+
+struct thread* thread_list_highest_priority(struct list* list){
+    struct thread* max_pri = NULL;
+    struct list_elem* e;
+    struct thread* t;
+    for(e = list_begin(list); e != list_end(list); e = list_next(e)) {
+        t = list_entry(e, struct thread, elem);
+        ASSERT(is_thread(t));
+        if(max_pri == NULL || max_pri->priority < t->priority) {
+            max_pri = t;
+        }
+    }
+    return max_pri;
 }
 
 static bool priority_less_func(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED) {

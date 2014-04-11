@@ -142,5 +142,6 @@ int thread_get_load_avg (void);
 
 void update_ready_list(void);
 void preempt(void);
+struct thread* thread_list_highest_priority(struct list* lst);
 
 #endif /* threads/thread.h */
