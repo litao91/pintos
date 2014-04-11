@@ -73,6 +73,7 @@ static tid_t allocate_tid (void);
 static bool priority_less_func(const struct list_elem* a,
         const struct list_elem* b,
         void *aux UNUSED);
+void preempt(void);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -251,7 +252,10 @@ thread_unblock (struct thread *t)
   list_insert_ordered(&ready_list, &t->elem, priority_less_func, 0);
   t->status = THREAD_READY;
   intr_set_level (old_level);
+  //try to preempt whenever a new thread is unblocked
+  preempt();
 }
+
 
 /* Returns the name of the running thread. */
 const char *
@@ -348,6 +352,7 @@ void
 thread_set_priority (int new_priority)
 {
   thread_current ()->priority = new_priority;
+  preempt();
 }
 
 /* Returns the current thread's priority. */
@@ -386,6 +391,29 @@ thread_get_recent_cpu (void)
 {
   /* Not yet implemented. */
   return 0;
+}
+
+void update_ready_list(void) {
+    list_sort(&ready_list, priority_less_func, 0);
+}
+
+void preempt(void) {
+    // Note: it seems that preempt will block the start up. So no preempt
+    // if intr is disabled, don't known why yet.
+    enum intr_level level = intr_get_level();
+    if(level == INTR_OFF) {
+        return;
+    }
+    struct thread* cur = thread_current();
+    struct thread* t = list_entry(list_begin(&ready_list), struct thread, elem);
+    ASSERT(is_thread(t));
+    if(t-> priority <= cur->priority) { // current thread has a higher priority, do nothing
+        return;
+    }else if(intr_context()){
+        intr_yield_on_return(); // if in a interrupt context, yield on return
+    }else {
+        thread_yield(); // otherwise, yield immediately
+    }
 }
 
 static bool priority_less_func(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED) {
@@ -480,8 +508,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->base_priority = priority;
   t->magic = THREAD_MAGIC;
-  t->sleep_until = -1;
+  t->sleep_until = -1; // negative value to indicate not sleeping
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -594,7 +623,7 @@ allocate_tid (void)
 
   return tid;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
