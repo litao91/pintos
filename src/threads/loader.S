@@ -20,7 +20,6 @@
 # Set up segment registers.
 # Set stack to grow downward from 60 kB (after boot, the kernel
 # continues to use this stack for its initial thread).
-# set %ax, %ds, %ss to 0, %esp, the stack pointer to 60 KB
 
 	sub %ax, %ax
 	mov %ax, %ds
@@ -32,7 +31,7 @@
 	sub %dx, %dx			# Serial port 0.
 	mov $0xe3, %al			# 9600 bps, N-8-1.
 					# AH is already 0 (Initialize Port).
-	int $0x14			# Destroys AX. int is interrupt
+	int $0x14			# Destroys AX.
 
 	call puts
 	.string "PiLo"
@@ -47,15 +46,14 @@
 #### We print out status messages to show the disk and partition being
 #### scanned, e.g. hda1234 as we scan four partitions on the first
 #### hard disk.
-#### Read the partitions until the 
 
 	mov $0x80, %dl			# Hard disk 0.
 read_mbr:
 	sub %ebx, %ebx			# Sector 0.
 	mov $0x2000, %ax		# Use 0x20000 for buffer.
-	mov %ax, %es            # buffer segment register
+	mov %ax, %es
 	call read_sector
-	jc no_such_drive        # Jump if carry, when CF=1
+	jc no_such_drive
 
 	# Print hd[a-z].
 	call puts
