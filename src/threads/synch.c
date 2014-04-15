@@ -181,6 +181,10 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
+  lock->elem.next = NULL;
+  lock->elem.prev = NULL;
+
+
   sema_init (&lock->semaphore, 1);
 }
 
@@ -211,6 +215,7 @@ lock_acquire (struct lock *lock)
   // So the donation must apply before
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  list_push_back(&thread_current()->locks_holding, &lock->elem);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -244,9 +249,19 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  // restore the priority, this should be the current thread and no need
-  // to update the ready list
-  lock->holder->priority = lock->holder->base_priority;
+  list_remove(&lock->elem);
+  int max_priority = -1;
+  struct list_elem* e;
+  for(e = list_begin(&thread_current()->locks_holding); e !=list_end(&thread_current()->locks_holding);
+          e = list_next(e)) {
+      struct lock* l = list_entry(e, struct lock, elem);
+      struct thread* t = list_entry(list_max(&l->semaphore.waiters, priority_less_func, 0),
+              struct thread, elem);
+      max_priority = max_priority < t->priority? t->priority:max_priority;
+  }
+  max_priority = max_priority < thread_current()->base_priority?
+      thread_current()->base_priority:max_priority;
+  thread_set_priority(max_priority);
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);

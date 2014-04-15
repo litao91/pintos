@@ -70,9 +70,6 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-static bool priority_less_func(const struct list_elem* a,
-        const struct list_elem* b,
-        void *aux UNUSED);
 void preempt(void);
 
 /* Initializes the threading system by transforming the code
@@ -405,7 +402,7 @@ void preempt(void) {
         return;
     }
     struct thread* cur = thread_current();
-    struct thread* t = list_entry(list_begin(&ready_list), struct thread, elem);
+    struct thread* t = list_entry(list_rbegin(&ready_list), struct thread, elem);
     ASSERT(is_thread(t));
     if(t-> priority <= cur->priority) { // current thread has a higher priority, do nothing
         return;
@@ -430,12 +427,12 @@ struct thread* thread_list_highest_priority(struct list* list){
     return max_pri;
 }
 
-static bool priority_less_func(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED) {
+bool priority_less_func(const struct list_elem* a, const struct list_elem* b, void* aux UNUSED) {
     struct thread* t_a = list_entry(a, struct thread, elem);
     struct thread* t_b = list_entry(b, struct thread, elem);
     ASSERT(is_thread(t_a));
     ASSERT(is_thread(t_b));
-    return t_a->priority > t_b->priority; // sorted in descending order
+    return t_a->priority < t_b->priority; // sorted in descending order
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -523,6 +520,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->base_priority = priority;
+  list_init(&t->locks_holding);
+
   t->magic = THREAD_MAGIC;
   t->sleep_until = -1; // negative value to indicate not sleeping
   list_push_back (&all_list, &t->allelem);
@@ -552,7 +551,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return list_entry (list_pop_back(&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page

@@ -88,6 +88,7 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int64_t sleep_until;
+    struct list locks_holding;
     int priority;                       /* Priority. */
     int base_priority;                  /* Priority before any donation */
     struct list_elem allelem;           /* List element for all threads list. */
@@ -143,5 +144,8 @@ int thread_get_load_avg (void);
 void update_ready_list(void);
 void preempt(void);
 struct thread* thread_list_highest_priority(struct list* lst);
+bool priority_less_func(const struct list_elem* a,
+        const struct list_elem* b,
+        void *aux UNUSED);
 
 #endif /* threads/thread.h */
