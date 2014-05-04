@@ -409,6 +409,7 @@ void preempt(void) {
     }else if(intr_context()){
         intr_yield_on_return(); // if in a interrupt context, yield on return
     }else {
+        //printf("preempting %s with %d\n", cur->name, cur->priority);
         thread_yield(); // otherwise, yield immediately
     }
 }

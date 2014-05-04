@@ -108,6 +108,7 @@ sema_try_down (struct semaphore *sema)
 void
 sema_up (struct semaphore *sema)
 {
+    //printf("up");
   enum intr_level old_level;
 
   ASSERT (sema != NULL);
@@ -116,6 +117,7 @@ sema_up (struct semaphore *sema)
   if (!list_empty (&sema->waiters)) {
       struct thread* next = thread_list_highest_priority(&sema->waiters);
       list_remove(&next->elem);
+      //printf("unblocking %s \n", next->name);
     thread_unblock (next);
   }
   sema->value++;
@@ -246,9 +248,11 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock)
 {
+    //printf("releasing\n");
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  enum intr_level old_level = intr_disable();
   list_remove(&lock->elem);
   int max_priority = -1;
   struct list_elem* e;
@@ -264,6 +268,7 @@ lock_release (struct lock *lock)
   thread_set_priority(max_priority);
 
   lock->holder = NULL;
+  intr_set_level(old_level);
   sema_up (&lock->semaphore);
 }
 
