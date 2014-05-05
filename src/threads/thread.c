@@ -20,6 +20,8 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+#define MAX_DONATION_DEPTH 7
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -521,7 +523,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->base_priority = priority;
+
   list_init(&t->locks_holding);
+  t->lock_waiting = NULL;
 
   t->magic = THREAD_MAGIC;
   t->sleep_until = -1; // negative value to indicate not sleeping
@@ -599,6 +603,27 @@ thread_schedule_tail (struct thread *prev)
       ASSERT (prev != cur);
       palloc_free_page (prev);
     }
+}
+
+/**
+ * Current thread try to donate its priority to the current lock holder
+ */
+void thread_priority_donate(struct lock* lock, int priority, int depth) {
+    if(depth > MAX_DONATION_DEPTH) {
+        return;
+    }
+  struct thread* holder = lock->holder;
+  // donation here
+  int cur_priority = priority;
+  if(holder != NULL && cur_priority > holder->priority) {
+      holder->priority = cur_priority;
+      update_ready_list();
+      struct lock* nested_lock = holder->lock_waiting;
+      // recursively donate the priority
+      if(nested_lock != NULL) {
+          thread_priority_donate(nested_lock, cur_priority, depth+1);
+      }
+  }
 }
 
 /* Schedules a new process.  At entry, interrupts must be off and

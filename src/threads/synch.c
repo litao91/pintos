@@ -29,6 +29,7 @@
 #include "threads/synch.h"
 #include <stdio.h>
 #include <string.h>
+#include "malloc.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
@@ -183,8 +184,8 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
-  lock->elem.next = NULL;
-  lock->elem.prev = NULL;
+  lock->elem_holding.next = NULL;
+  lock->elem_holding.prev = NULL;
 
 
   sema_init (&lock->semaphore, 1);
@@ -205,19 +206,18 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  struct thread* holder = lock->holder;
-  // dnoation here
-  int cur_priority = thread_get_priority();
-  if(holder != NULL && cur_priority > holder->priority) {
-      holder->priority = cur_priority;
-      update_ready_list();
-  }
+  thread_priority_donate(lock, thread_get_priority(), 0);
+
+  //struct lock_list_node* node = malloc(sizeof(struct lock_list_node));
+  //list_push_back(&thread_current()->locks_waiting, &node->elem);
 
   // current thread will be blocked if semaphore is not available
   // So the donation must apply before
+  thread_current()->lock_waiting = lock;
   sema_down (&lock->semaphore);
+  thread_current()->lock_waiting = NULL;
   lock->holder = thread_current ();
-  list_push_back(&thread_current()->locks_holding, &lock->elem);
+  list_push_back(&thread_current()->locks_holding, &lock->elem_holding);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -253,12 +253,12 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   enum intr_level old_level = intr_disable();
-  list_remove(&lock->elem);
+  list_remove(&lock->elem_holding);
   int max_priority = -1;
   struct list_elem* e;
   for(e = list_begin(&thread_current()->locks_holding); e !=list_end(&thread_current()->locks_holding);
           e = list_next(e)) {
-      struct lock* l = list_entry(e, struct lock, elem);
+      struct lock* l = list_entry(e, struct lock, elem_holding);
       struct thread* t = list_entry(list_max(&l->semaphore.waiters, priority_less_func, 0),
               struct thread, elem);
       max_priority = max_priority < t->priority? t->priority:max_priority;

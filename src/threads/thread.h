@@ -5,6 +5,8 @@
 #include <list.h>
 #include <stdint.h>
 
+struct lock;
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -89,6 +91,7 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int64_t sleep_until;
     struct list locks_holding;
+    struct lock* lock_waiting;
     int priority;                       /* Priority. */
     int base_priority;                  /* Priority before any donation */
     struct list_elem allelem;           /* List element for all threads list. */
@@ -144,6 +147,7 @@ int thread_get_load_avg (void);
 void update_ready_list(void);
 void preempt(void);
 struct thread* thread_list_highest_priority(struct list* lst);
+void thread_priority_donate(struct lock* lock, int priority, int depth);
 bool priority_less_func(const struct list_elem* a,
         const struct list_elem* b,
         void *aux UNUSED);
