@@ -265,7 +265,10 @@ lock_release (struct lock *lock)
   }
   max_priority = max_priority < thread_current()->base_priority?
       thread_current()->base_priority:max_priority;
-  thread_set_priority(max_priority);
+
+  thread_current()->priority = max_priority;
+  preempt();
+
 
   lock->holder = NULL;
   intr_set_level(old_level);
