@@ -440,7 +440,7 @@ bool priority_less_func(const struct list_elem* a, const struct list_elem* b, vo
     struct thread* t_b = list_entry(b, struct thread, elem);
     ASSERT(is_thread(t_a));
     ASSERT(is_thread(t_b));
-    return t_a->priority < t_b->priority; // sorted in descending order
+    return t_a->priority <= t_b->priority; // sorted in descending order, equal to ensure fifo
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
