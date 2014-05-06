@@ -91,7 +91,9 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int64_t sleep_until;
     struct list locks_holding;
-    struct lock* lock_waiting;
+    struct lock* lock_waiting;          /* Each process can hold multiple locks
+                                           but can only wait for one lock */
+
     int priority;                       /* Priority. */
     int base_priority;                  /* Priority before any donation */
     struct list_elem allelem;           /* List element for all threads list. */
