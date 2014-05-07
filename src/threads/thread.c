@@ -78,15 +78,11 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 static void mlfqs_update_priority(struct thread* t);
 static void mlfqs_update_recent_cpu(struct thread* t);
+static void mlfqs_update_load_avg(void);
 
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-
-static int round(double in) {
-    int in_int  = in;
-    return in - in_int > 0.5 ? in_int: in_int + 1;
-}
 
 /* Initializes the threading system by transforming the code
      that's currently running into a thread.    This can't work in
@@ -647,7 +643,7 @@ void thread_priority_donate(struct lock* lock, int priority, int depth) {
 /**
  * Update the load average, load_avg = (59/60)*load_avg + (1/60)*ready_threads
  */
-void mlfqs_update_load_avg() {
+static void mlfqs_update_load_avg(void) {
     ASSERT(thread_mlfqs);
     // always 100 times of the targeted value
     load_avg = 59 * load_avg / 60 + 100 * list_size(&ready_list) / 60;
@@ -659,11 +655,15 @@ void mlfqs_update_load_avg() {
  */
 static void mlfqs_update_recent_cpu(struct thread* t) {
     ASSERT(thread_mlfqs);
+    if(t == idle_thread) {
+        return;
+    }
     int recent = t->recent_cpu;
     int nice = t->nice;
     int load = thread_get_load_avg(); // 100 times load average
     t->recent_cpu =2 * load * recent / (2 * load + 100) + 100 * nice;
 }
+
 /**
  * priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
  */
