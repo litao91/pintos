@@ -100,6 +100,8 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    int nice;                           /* nice value of the thread */
+    int recent_cpu;                     /* 100 times recent CPU of this thread */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -153,5 +155,4 @@ void thread_priority_donate(struct lock* lock, int priority, int depth);
 bool priority_less_func(const struct list_elem* a,
         const struct list_elem* b,
         void *aux UNUSED);
-
 #endif /* threads/thread.h */
