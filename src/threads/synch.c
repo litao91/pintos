@@ -205,7 +205,9 @@ lock_acquire (struct lock *lock)
     ASSERT (!intr_context ());
     ASSERT (!lock_held_by_current_thread (lock));
 
-    thread_priority_donate(lock, thread_get_priority(), 0);
+    if(!thread_mlfqs) {
+        thread_priority_donate(lock, thread_get_priority(), 0);
+    }
 
     //struct lock_list_node* node = malloc(sizeof(struct lock_list_node));
     //list_push_back(&thread_current()->locks_waiting, &node->elem);

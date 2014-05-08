@@ -383,7 +383,7 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice) {
     thread_current()->nice = nice;
-    /* Not yet implemented. */
+    mlfqs_update_priority(thread_current());
 }
 
 /* Returns the current thread's nice value. */
@@ -623,20 +623,33 @@ thread_schedule_tail (struct thread *prev)
  * Current thread try to donate its priority to the current lock holder
  */
 void thread_priority_donate(struct lock* lock, int priority, int depth) {
-        if(depth > MAX_DONATION_DEPTH) {
-                return;
-        }
+    ASSERT(!thread_mlfqs);
+    if(depth > MAX_DONATION_DEPTH) {
+        return;
+    }
     struct thread* holder = lock->holder;
     // donation here
     int cur_priority = priority;
     if(holder != NULL && cur_priority > holder->priority) {
-            holder->priority = cur_priority;
-            update_ready_list();
-            struct lock* nested_lock = holder->lock_waiting;
-            // recursively donate the priority
-            if(nested_lock != NULL) {
-                    thread_priority_donate(nested_lock, cur_priority, depth+1);
-            }
+        holder->priority = cur_priority;
+        update_ready_list();
+        struct lock* nested_lock = holder->lock_waiting;
+        // recursively donate the priority
+        if(nested_lock != NULL) {
+            thread_priority_donate(nested_lock, cur_priority, depth+1);
+        }
+    }
+}
+
+void mlfqs_update(void) {
+    ASSERT(thread_mlfqs); /* Must be called with mlfqs */
+    mlfqs_update_load_avg();
+    struct list_elem* e;
+    for (e = list_begin(&all_list); e != list_end(&all_list);
+            e = list_next(e)) {
+        struct thread* t = list_entry(e, struct thread, allelem);
+        mlfqs_update_recent_cpu(t);
+        mlfqs_update_priority(t);
     }
 }
 
@@ -661,14 +674,19 @@ static void mlfqs_update_recent_cpu(struct thread* t) {
     int recent = t->recent_cpu;
     int nice = t->nice;
     int load = thread_get_load_avg(); // 100 times load average
-    t->recent_cpu =2 * load * recent / (2 * load + 100) + 100 * nice;
+    t->recent_cpu = 2 * load * recent / (2 * load + 100) + 100 * nice;
 }
+
 
 /**
  * priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
  */
 static void mlfqs_update_priority(struct thread* t) {
     ASSERT(thread_mlfqs);
+    if(t == idle_thread) {
+        return;
+    }
+
     t->priority = (PRI_MAX * 100  -
         thread_get_recent_cpu()/4 - thread_get_nice() * 2) / 100;
     // make sure the priority in the valid scope.
