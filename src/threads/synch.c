@@ -122,7 +122,9 @@ sema_up (struct semaphore *sema)
     }
     sema->value++;
     intr_set_level (old_level);
-    preempt();
+    if(!thread_mlfqs) {
+        preempt();
+    }
 }
 
 static void sema_test_helper (void *sema_);
@@ -268,7 +270,9 @@ lock_release (struct lock *lock)
             thread_current()->base_priority:max_priority;
 
     thread_current()->priority = max_priority;
-    preempt();
+    if(!thread_mlfqs) {
+        preempt();
+    }
 
 
     lock->holder = NULL;

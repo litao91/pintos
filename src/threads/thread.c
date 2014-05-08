@@ -264,7 +264,9 @@ thread_unblock (struct thread *t)
     t->status = THREAD_READY;
     intr_set_level (old_level);
     //try to preempt whenever a new thread is unblocked
-    preempt();
+    if(!thread_mlfqs) {
+        preempt();
+    }
 }
 
 
@@ -410,23 +412,27 @@ void update_ready_list(void) {
 }
 
 void preempt(void) {
-        // Note: it seems that preempt will block the start up. So no preempt
-        // if intr is disabled, don't known why yet.
-        enum intr_level level = intr_get_level();
-        if(level == INTR_OFF || list_empty(&ready_list)) {
-                return;
-        }
-        struct thread* cur = thread_current();
-        struct thread* t = list_entry(list_rbegin(&ready_list), struct thread, elem);
-        ASSERT(is_thread(t));
-        if(t-> priority <= cur->priority) { // current thread has a higher priority, do nothing
-                return;
-        }else if(intr_context()){
-                intr_yield_on_return(); // if in a interrupt context, yield on return
-        }else {
-                //printf("preempting %s with %d\n", cur->name, cur->priority);
-                thread_yield(); // otherwise, yield immediately
-        }
+    ASSERT(!thread_mlfqs);
+    /*if(thread_mlfqs) {*/
+        /*return;*/
+    /*}*/
+    // Note: it seems that preempt will block the start up. So no preempt
+    // if intr is disabled, don't known why yet.
+    enum intr_level level = intr_get_level();
+    if(level == INTR_OFF || list_empty(&ready_list)) {
+            return;
+    }
+    struct thread* cur = thread_current();
+    struct thread* t = list_entry(list_rbegin(&ready_list), struct thread, elem);
+    ASSERT(is_thread(t));
+    if(t-> priority <= cur->priority) { // current thread has a higher priority, do nothing
+            return;
+    }else if(intr_context()){
+            intr_yield_on_return(); // if in a interrupt context, yield on return
+    }else {
+            //printf("preempting %s with %d\n", cur->name, cur->priority);
+            thread_yield(); // otherwise, yield immediately
+    }
 }
 
 struct thread* thread_list_highest_priority(struct list* list){
@@ -663,7 +669,9 @@ static void mlfqs_update_load_avg(void) {
     size_t num_ready_threads = list_size(&ready_list);
     num_ready_threads = thread_current() == idle_thread ? num_ready_threads: num_ready_threads + 1;
 
+    //printf("load avg %d, num thread %zu,", thread_get_load_avg(), num_ready_threads);
     load_avg = FP_ADD(FP_DIV_N(FP_MULT_N(load_avg, 59), 60), FP_DIV_N(INT_TO_FP(num_ready_threads),60));
+    //printf("after change load avg %d\n", thread_get_load_avg());
     //printf("updating load_avg to %d, list_size %zu\n", load_avg, num_ready_threads);
 }
 
