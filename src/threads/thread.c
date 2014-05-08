@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/fixed_point.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -396,12 +397,12 @@ thread_get_nice (void)
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) {
-    return load_avg;
+    return FP_TO_INT_ROUND(FP_MULT_N(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int thread_get_recent_cpu (void) {
-    return thread_current()->recent_cpu;
+    return FP_TO_INT_ROUND(FP_MULT(thread_current()->recent_cpu, 100));
 }
 
 void update_ready_list(void) {
@@ -659,7 +660,11 @@ void mlfqs_update(void) {
 static void mlfqs_update_load_avg(void) {
     ASSERT(thread_mlfqs);
     // always 100 times of the targeted value
-    load_avg = 59 * load_avg / 60 + 100 * list_size(&ready_list) / 60;
+    size_t num_ready_threads = list_size(&ready_list);
+    num_ready_threads = thread_current() == idle_thread ? num_ready_threads: num_ready_threads + 1;
+
+    load_avg = FP_ADD(FP_DIV_N(FP_MULT_N(load_avg, 59), 60), FP_DIV_N(INT_TO_FP(num_ready_threads),60));
+    //printf("updating load_avg to %d, list_size %zu\n", load_avg, num_ready_threads);
 }
 
 /**
@@ -673,8 +678,11 @@ static void mlfqs_update_recent_cpu(struct thread* t) {
     }
     int recent = t->recent_cpu;
     int nice = t->nice;
-    int load = thread_get_load_avg(); // 100 times load average
-    t->recent_cpu = 2 * load * recent / (2 * load + 100) + 100 * nice;
+    // Fixed point arithmetic
+    t->recent_cpu = FP_ADD(
+            FP_MULT(FP_DIV(FP_MULT_N(load_avg, 2),
+                    FP_ADD_N(FP_MULT_N(load_avg, 2), 1)), recent),
+            nice);
 }
 
 
