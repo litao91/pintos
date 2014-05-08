@@ -264,9 +264,9 @@ thread_unblock (struct thread *t)
     t->status = THREAD_READY;
     intr_set_level (old_level);
     //try to preempt whenever a new thread is unblocked
-    if(!thread_mlfqs) {
+    //if(!thread_mlfqs) {
         preempt();
-    }
+    //}
 }
 
 
@@ -404,7 +404,7 @@ thread_get_load_avg (void) {
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int thread_get_recent_cpu (void) {
-    return FP_TO_INT_ROUND(FP_MULT(thread_current()->recent_cpu, 100));
+    return FP_TO_INT_ROUND(FP_MULT_N(thread_current()->recent_cpu, 100));
 }
 
 void update_ready_list(void) {
@@ -412,10 +412,10 @@ void update_ready_list(void) {
 }
 
 void preempt(void) {
-    ASSERT(!thread_mlfqs);
-    /*if(thread_mlfqs) {*/
-        /*return;*/
-    /*}*/
+    //ASSERT(!thread_mlfqs);
+    if(thread_mlfqs) {
+        return;
+    }
     // Note: it seems that preempt will block the start up. So no preempt
     // if intr is disabled, don't known why yet.
     enum intr_level level = intr_get_level();
@@ -660,6 +660,10 @@ void mlfqs_update(void) {
     }
 }
 
+void increment_recent_cpu(void) {
+    thread_current()->recent_cpu = FP_ADD_N(thread_current()->recent_cpu, 1);
+}
+
 /**
  * Update the load average, load_avg = (59/60)*load_avg + (1/60)*ready_threads
  */
@@ -686,11 +690,15 @@ static void mlfqs_update_recent_cpu(struct thread* t) {
     }
     int recent = t->recent_cpu;
     int nice = t->nice;
+    //printf("Two Load avg = %d\n", FP_TO_INT_ROUND(FP_MULT_N(two_load_avg, 100)));
+    //printf("updating recent %d, nice %d\n", recent, nice);
     // Fixed point arithmetic
-    t->recent_cpu = FP_ADD(
-            FP_MULT(FP_DIV(FP_MULT_N(load_avg, 2),
-                    FP_ADD_N(FP_MULT_N(load_avg, 2), 1)), recent),
-            nice);
+    int term = FP_MULT_N(load_avg, 2);
+    term = FP_DIV(term, FP_ADD_N(term, 1));
+    term = FP_MULT(term, recent);
+    term = FP_ADD_N(term, nice);
+    t->recent_cpu = term;
+
 }
 
 

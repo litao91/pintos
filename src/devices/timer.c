@@ -207,13 +207,13 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
-  wake_waitings();
   if(thread_mlfqs) {
-      thread_current()->recent_cpu = thread_current()->recent_cpu + 1;
+      increment_recent_cpu();
       if( ticks % TIMER_FREQ == 0) {
           mlfqs_update();
       }
   }
+  wake_waitings();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

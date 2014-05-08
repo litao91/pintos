@@ -156,4 +156,5 @@ bool priority_less_func(const struct list_elem* a,
         const struct list_elem* b,
         void *aux UNUSED);
 void mlfqs_update(void);
+void increment_recent_cpu(void);
 #endif /* threads/thread.h */
