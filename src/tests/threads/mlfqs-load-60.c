@@ -105,6 +105,8 @@
 #include "threads/thread.h"
 #include "devices/timer.h"
 
+#include <inttypes.h>
+
 static int64_t start_time;
 
 static void load_thread (void *aux);
@@ -135,7 +137,7 @@ test_mlfqs_load_60 (void)
         //printf("Sleeping %d\n", i);
       int64_t sleep_until = start_time + TIMER_FREQ * (2 * i + 10);
       int load_avg;
-      printf("sleeping %d\n", i);
+//      printf("sleeping %d\n", i);
       timer_sleep (sleep_until - timer_ticks ());
       load_avg = thread_get_load_avg ();
       msg ("After %d seconds, load average=%d.%02d.",
@@ -146,13 +148,16 @@ test_mlfqs_load_60 (void)
 static void
 load_thread (void *aux UNUSED)
 {
-  int64_t sleep_time = 10 * TIMER_FREQ;
+  //  printf("Running thread %s\n", thread_current()->name);
+  int64_t sleep_time = 10 * TIMER_FREQ; // sleep 10 secs
   int64_t spin_time = sleep_time + 60 * TIMER_FREQ;
   int64_t exit_time = spin_time + 60 * TIMER_FREQ;
 
   thread_set_nice (20);
   timer_sleep (sleep_time - timer_elapsed (start_time));
+  //printf("spining %s\n", thread_current()->name);
   while (timer_elapsed (start_time) < spin_time)
     continue;
+  printf("spin end\n");
   timer_sleep (exit_time - timer_elapsed (start_time));
 }

@@ -153,15 +153,14 @@ thread_tick (void)
     else
         kernel_ticks++;
 
-    /* Enforce preemption. */
-    if (++thread_ticks >= TIME_SLICE)
-        intr_yield_on_return ();
-
     update_sleeps();
-
     if(thread_mlfqs) {
         thread_current()->recent_cpu = FP_ADD_N(thread_current()->recent_cpu, 1);
     }
+
+    /* Enforce preemption. */
+    if (++thread_ticks >= TIME_SLICE)
+        intr_yield_on_return ();
 }
 
 /* Prints thread statistics. */
@@ -680,8 +679,9 @@ void thread_tick_sec(void) {
             mlfqs_update_priority(t);
         }
     }
+    intr_yield_on_return();
     /*printf("sorting");*/
-    /*update_ready_list();*/
+    // update_ready_list();
 }
 
 
@@ -750,11 +750,14 @@ static void mlfqs_update_priority(struct thread* t) {
         return;
     }
 
-    t->priority = (PRI_MAX * 100  -
-        thread_get_recent_cpu()/4 - thread_get_nice() * 2) / 100;
-    // make sure the priority in the valid scope.
-    t->priority = t->priority > PRI_MAX ? PRI_MAX: t->priority;
-    t->priority = t->priority < PRI_MIN ? PRI_MIN: t->priority;
+    int pri;
+    pri = PRI_MAX - FP_TO_INT_ROUND(FP_DIV_N(t->recent_cpu, 4)) - (t->nice * 2);
+    if(pri <  PRI_MIN)
+        t->priority = PRI_MIN;
+    else if( pri > PRI_MAX)
+        t->priority = PRI_MAX;
+    else
+        t->priority = pri;
 }
 
 /* Schedules a new process.    At entry, interrupts must be off and
