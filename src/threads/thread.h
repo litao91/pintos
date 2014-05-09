@@ -156,5 +156,5 @@ void thread_priority_donate(struct lock* lock, int priority, int depth);
 bool priority_less_func(const struct list_elem* a,
         const struct list_elem* b,
         void *aux UNUSED);
-void mlfqs_update(void);
+void thread_tick_sec(void);
 #endif /* threads/thread.h */

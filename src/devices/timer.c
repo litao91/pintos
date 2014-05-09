@@ -171,15 +171,12 @@ timer_print_stats (void)
 
 /* Timer interrupt handler. */
 static void
-timer_interrupt (struct intr_frame *args UNUSED)
-{
-  ticks++;
-  thread_tick ();
-  if(thread_mlfqs) {
-      if( ticks % TIMER_FREQ == 0) {
-          mlfqs_update();
-      }
-  }
+timer_interrupt (struct intr_frame *args UNUSED) {
+    ticks++;
+    thread_tick ();
+    if( ticks % TIMER_FREQ == 0) {
+        thread_tick_sec();
+    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

@@ -668,16 +668,17 @@ void thread_priority_donate(struct lock* lock, int priority, int depth) {
     }
 }
 
-void mlfqs_update(void) {
-    ASSERT(thread_mlfqs); /* Must be called with mlfqs */
+void thread_tick_sec(void) {
     ASSERT(intr_context());
-    mlfqs_update_load_avg();
-    struct list_elem* e;
-    for (e = list_begin(&all_list); e != list_end(&all_list);
-            e = list_next(e)) {
-        struct thread* t = list_entry(e, struct thread, allelem);
-        mlfqs_update_recent_cpu(t);
-        mlfqs_update_priority(t);
+    if(thread_mlfqs) {
+        mlfqs_update_load_avg();
+        struct list_elem* e;
+        for (e = list_begin(&all_list); e != list_end(&all_list);
+                e = list_next(e)) {
+            struct thread* t = list_entry(e, struct thread, allelem);
+            mlfqs_update_recent_cpu(t);
+            mlfqs_update_priority(t);
+        }
     }
     /*printf("sorting");*/
     /*update_ready_list();*/
