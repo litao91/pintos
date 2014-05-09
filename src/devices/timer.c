@@ -32,7 +32,6 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-struct list wait_list;
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
@@ -41,7 +40,6 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  list_init(&wait_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -97,39 +95,9 @@ timer_sleep (int64_t ticks)
     if(ticks <= 0) {
         return;
     }
-
-  int64_t start = timer_ticks ();
-  ASSERT (intr_get_level () == INTR_ON);
-  enum intr_level old_level = intr_disable();
-  int64_t sleep_until = start + ticks;
-  struct thread* cur = thread_current();
-  cur->sleep_until = sleep_until;
-  // push to wait list
-  list_push_back(&wait_list, &cur->elem);
-  //block the thread
-  thread_block();
-  /*while (timer_elapsed (start) < ticks)*/
-    /*thread_yield ();*/
-  intr_set_level(old_level);
+    thread_sleep(ticks);
 }
 
-static void wake_waitings(void) {
-    ASSERT(intr_context()); // must be run on timer tick interruption
-    struct list_elem* e;
-    struct thread* t;
-    int64_t cur = timer_ticks();
-    e = list_begin(&wait_list);
-    while(e != list_end(&wait_list)) {
-        t = list_entry(e, struct thread, elem);
-        if(t->sleep_until > 0 && t->sleep_until <= cur){
-            e = list_remove(e);
-            thread_unblock(t);
-            //printf("%s waked\n", t->name);
-        }else {
-            e = list_next(e);
-        }
-    }
-}
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
@@ -208,12 +176,10 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
   if(thread_mlfqs) {
-      increment_recent_cpu();
       if( ticks % TIMER_FREQ == 0) {
           mlfqs_update();
       }
   }
-  wake_waitings();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

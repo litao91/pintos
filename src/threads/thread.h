@@ -89,7 +89,7 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int64_t sleep_until;
+    int64_t sleep_ticks;
     struct list locks_holding;
     struct lock* lock_waiting;          /* Each process can hold multiple locks
                                            but can only wait for one lock */
@@ -132,6 +132,7 @@ void thread_unblock (struct thread *);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
+void thread_sleep(int64_t sleep_until);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
@@ -156,5 +157,4 @@ bool priority_less_func(const struct list_elem* a,
         const struct list_elem* b,
         void *aux UNUSED);
 void mlfqs_update(void);
-void increment_recent_cpu(void);
 #endif /* threads/thread.h */

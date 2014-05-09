@@ -30,6 +30,7 @@
 /* List of processes in THREAD_READY state, that is, processes
      that are ready to run but not actually running. */
 static struct list ready_list;
+struct list wait_list;
 
 /* List of all processes.    Processes are added to this list
      when they are first scheduled and removed when they exit. */
@@ -77,6 +78,7 @@ static void init_thread (struct thread *, const char *name, int priority);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
+static void update_sleeps(void);
 static void mlfqs_update_priority(struct thread* t);
 static void mlfqs_update_recent_cpu(struct thread* t);
 static void mlfqs_update_load_avg(void);
@@ -104,8 +106,10 @@ thread_init (void)
     ASSERT (intr_get_level () == INTR_OFF);
 
     lock_init (&tid_lock);
+
     list_init (&ready_list);
     list_init (&all_list);
+    list_init(&wait_list);
 
     /* Set up a thread structure for the running thread. */
     initial_thread = running_thread ();
@@ -152,6 +156,12 @@ thread_tick (void)
     /* Enforce preemption. */
     if (++thread_ticks >= TIME_SLICE)
         intr_yield_on_return ();
+
+    update_sleeps();
+
+    if(thread_mlfqs) {
+        thread_current()->recent_cpu = FP_ADD_N(thread_current()->recent_cpu, 1);
+    }
 }
 
 /* Prints thread statistics. */
@@ -549,7 +559,7 @@ init_thread (struct thread *t, const char *name, int priority)
     t->nice = DEFAULT_NICE;
 
     t->magic = THREAD_MAGIC;
-    t->sleep_until = -1; // negative value to indicate not sleeping
+    t->sleep_ticks = 0; // negative value to indicate not sleeping
     list_push_back (&all_list, &t->allelem);
 }
 
@@ -564,6 +574,16 @@ alloc_frame (struct thread *t, size_t size)
 
     t->stack -= size;
     return t->stack;
+}
+
+void thread_sleep(int64_t sleep_ticks) {
+  ASSERT (intr_get_level () == INTR_ON);
+  enum intr_level old_level = intr_disable();
+  struct thread* cur = thread_current();
+  cur->sleep_ticks = sleep_ticks;
+  list_push_back(&wait_list, &cur->elem);
+  thread_block();
+  intr_set_level(old_level);
 }
 
 /* Chooses and returns the next thread to be scheduled.    Should
@@ -650,6 +670,7 @@ void thread_priority_donate(struct lock* lock, int priority, int depth) {
 
 void mlfqs_update(void) {
     ASSERT(thread_mlfqs); /* Must be called with mlfqs */
+    ASSERT(intr_context());
     mlfqs_update_load_avg();
     struct list_elem* e;
     for (e = list_begin(&all_list); e != list_end(&all_list);
@@ -658,10 +679,27 @@ void mlfqs_update(void) {
         mlfqs_update_recent_cpu(t);
         mlfqs_update_priority(t);
     }
+    /*printf("sorting");*/
+    /*update_ready_list();*/
 }
 
-void increment_recent_cpu(void) {
-    thread_current()->recent_cpu = FP_ADD_N(thread_current()->recent_cpu, 1);
+
+static void update_sleeps(void) {
+    ASSERT(intr_context()); // must be run on timer tick interruption
+    struct list_elem* e;
+    struct thread* t;
+    e = list_begin(&wait_list);
+    while(e != list_end(&wait_list)) {
+        t = list_entry(e, struct thread, elem);
+        --t->sleep_ticks;
+        if(t->sleep_ticks <=0) {
+            e = list_remove(e);
+            thread_unblock(t);
+            //printf("%s waked\n", t->name);
+        }else {
+            e = list_next(e);
+        }
+    }
 }
 
 /**
