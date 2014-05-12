@@ -176,7 +176,10 @@ timer_interrupt (struct intr_frame *args UNUSED) {
     thread_tick ();
     if( ticks % TIMER_FREQ == 0) {
         thread_tick_sec();
+        //update_ready_list();
     }
+
+    thread_tick_slice(ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

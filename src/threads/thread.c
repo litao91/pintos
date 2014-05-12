@@ -147,22 +147,59 @@ thread_tick (void)
     if (t == idle_thread)
         idle_ticks++;
 #ifdef USERPROG
-    else if (t->pagedir != NULL)
+    else if (t->pagedir != NULL){
+        if(thread_mlfqs) {
+            t->recent_cpu = FP_ADD_N(t->recent_cpu, 1);
+        }
         user_ticks++;
+    }
 #endif
-    else
+    else {
         kernel_ticks++;
+        if(thread_mlfqs) {
+            t->recent_cpu = FP_ADD_N(t->recent_cpu, 1);
+        }
+    }
+
 
     update_sleeps();
-    if(thread_mlfqs) {
-        thread_current()->recent_cpu = FP_ADD_N(thread_current()->recent_cpu, 1);
-    }
 
     /* Enforce preemption. */
     if (++thread_ticks >= TIME_SLICE)
         intr_yield_on_return ();
 }
 
+
+void thread_tick_sec(void) {
+    ASSERT(intr_context());
+    //printf("tick\n");
+    if(thread_mlfqs) {
+        mlfqs_update_load_avg();
+        struct list_elem* e;
+        for (e = list_begin(&all_list); e != list_end(&all_list);
+                e = list_next(e)) {
+            struct thread* t = list_entry(e, struct thread, allelem);
+            //printf("%s\n", t->name);
+            mlfqs_update_recent_cpu(t);
+        }
+        //update_ready_list();
+    }
+}
+
+void thread_tick_slice(int64_t ticks) {
+    if(ticks % TIME_SLICE == 0) {
+        if(thread_mlfqs) {
+            struct list_elem* e;
+            for (e = list_begin(&all_list); e != list_end(&all_list);
+                    e = list_next(e)) {
+                struct thread* t = list_entry(e, struct thread, allelem);
+                //printf("%s\n", t->name);
+                mlfqs_update_priority(t);
+            }
+            //update_ready_list();
+        }
+    }
+}
 /* Prints thread statistics. */
 void
 thread_print_stats (void)
@@ -394,8 +431,11 @@ thread_get_priority (void)
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice) {
+    if(nice < -20 || nice > 20) {
+        return;
+    }
     thread_current()->nice = nice;
-    mlfqs_update_priority(thread_current());
+    //mlfqs_update_priority(thread_current());
 }
 
 /* Returns the current thread's nice value. */
@@ -451,7 +491,7 @@ struct thread* thread_list_highest_priority(struct list* list){
         for(e = list_begin(list); e != list_end(list); e = list_next(e)) {
                 t = list_entry(e, struct thread, elem);
                 ASSERT(is_thread(t));
-                if(max_pri == NULL || max_pri->priority < t->priority) {
+                if(max_pri == NULL || max_pri->priority <= t->priority) {
                         max_pri = t;
                 }
         }
@@ -556,9 +596,13 @@ init_thread (struct thread *t, const char *name, int priority)
     t->lock_waiting = NULL;
     t->recent_cpu = INIT_RECENT_CPU;
     t->nice = DEFAULT_NICE;
+    if(thread_mlfqs){
+        t->nice = running_thread()->nice;
+        mlfqs_update_priority(t);
+    }
 
     t->magic = THREAD_MAGIC;
-    t->sleep_ticks = 0; // negative value to indicate not sleeping
+    t->sleep_ticks = 0;
     list_push_back (&all_list, &t->allelem);
 }
 
@@ -580,8 +624,9 @@ void thread_sleep(int64_t sleep_ticks) {
   enum intr_level old_level = intr_disable();
   struct thread* cur = thread_current();
   cur->sleep_ticks = sleep_ticks;
-  list_push_back(&wait_list, &cur->elem);
-  thread_block();
+  cur->status = THREAD_BLOCKED;
+  list_push_back(&wait_list, &cur->elem); //, priority_less_func, 0);
+  schedule();
   intr_set_level(old_level);
 }
 
@@ -591,10 +636,14 @@ void thread_sleep(int64_t sleep_ticks) {
      will be in the run queue.)    If the run queue is empty, return
      idle_thread. */
 static struct thread *
-next_thread_to_run (void)
-{
+next_thread_to_run (void) {
     if (list_empty (&ready_list))
         return idle_thread;
+    else if(thread_mlfqs) {
+        struct thread* t = thread_list_highest_priority(&ready_list);
+        list_remove(&t->elem);
+        return t;
+    }
     else
         return list_entry (list_pop_back(&ready_list), struct thread, elem);
 }
@@ -616,8 +665,7 @@ next_thread_to_run (void)
      After this function and its caller returns, the thread switch
      is complete. */
 void
-thread_schedule_tail (struct thread *prev)
-{
+thread_schedule_tail (struct thread *prev) {
     struct thread *cur = running_thread ();
 
     ASSERT (intr_get_level () == INTR_OFF);
@@ -667,22 +715,12 @@ void thread_priority_donate(struct lock* lock, int priority, int depth) {
     }
 }
 
-void thread_tick_sec(void) {
-    ASSERT(intr_context());
-    if(thread_mlfqs) {
-        mlfqs_update_load_avg();
-        struct list_elem* e;
-        for (e = list_begin(&all_list); e != list_end(&all_list);
-                e = list_next(e)) {
-            struct thread* t = list_entry(e, struct thread, allelem);
-            mlfqs_update_recent_cpu(t);
-            mlfqs_update_priority(t);
-        }
-    }
-    intr_yield_on_return();
-    /*printf("sorting");*/
-    // update_ready_list();
-}
+
+/*void thread_tick_sec_tail(void) {*/
+    /*if(thread_mlfqs) {*/
+        /*update_ready_list();*/
+    /*}*/
+/*}*/
 
 
 static void update_sleeps(void) {
@@ -711,11 +749,7 @@ static void mlfqs_update_load_avg(void) {
     // always 100 times of the targeted value
     size_t num_ready_threads = list_size(&ready_list);
     num_ready_threads = thread_current() == idle_thread ? num_ready_threads: num_ready_threads + 1;
-
-    //printf("load avg %d, num thread %zu,", thread_get_load_avg(), num_ready_threads);
     load_avg = FP_ADD(FP_DIV_N(FP_MULT_N(load_avg, 59), 60), FP_DIV_N(INT_TO_FP(num_ready_threads),60));
-    //printf("after change load avg %d\n", thread_get_load_avg());
-    //printf("updating load_avg to %d, list_size %zu\n", load_avg, num_ready_threads);
 }
 
 /**
@@ -737,7 +771,6 @@ static void mlfqs_update_recent_cpu(struct thread* t) {
     term = FP_MULT(term, recent);
     term = FP_ADD_N(term, nice);
     t->recent_cpu = term;
-
 }
 
 
@@ -749,7 +782,6 @@ static void mlfqs_update_priority(struct thread* t) {
     if(t == idle_thread) {
         return;
     }
-
     int pri;
     pri = PRI_MAX - FP_TO_INT_ROUND(FP_DIV_N(t->recent_cpu, 4)) - (t->nice * 2);
     if(pri <  PRI_MIN)

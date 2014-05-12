@@ -157,4 +157,6 @@ bool priority_less_func(const struct list_elem* a,
         const struct list_elem* b,
         void *aux UNUSED);
 void thread_tick_sec(void);
+void thread_tick_slice(int64_t ticks);
+//void thread_tick_sec_tail(void);
 #endif /* threads/thread.h */
