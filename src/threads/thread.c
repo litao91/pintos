@@ -462,9 +462,9 @@ void update_ready_list(void) {
 
 void preempt(void) {
     //ASSERT(!thread_mlfqs);
-    if(thread_mlfqs) {
-        return;
-    }
+    /*if(thread_mlfqs) {*/
+        /*return;*/
+    /*}*/
     // Note: it seems that preempt will block the start up. So no preempt
     // if intr is disabled, don't known why yet.
     enum intr_level level = intr_get_level();
