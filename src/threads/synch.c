@@ -297,11 +297,10 @@ struct semaphore_elem {
 /* Initializes condition variable COND.    A condition variable
      allows one piece of code to signal a condition and cooperating
      code to receive the signal and act upon it. */
-void
-cond_init (struct condition *cond)
-{
+void cond_init (struct condition *cond) {
     ASSERT (cond != NULL);
 
+    // waiters are a list of semaphores.
     list_init (&cond->waiters);
 }
 
@@ -377,9 +376,7 @@ static struct semaphore_elem* find_cond_highest_priority(struct list* waiters) {
      An interrupt handler cannot acquire a lock, so it does not
      make sense to try to signal a condition variable within an
      interrupt handler. */
-void
-cond_signal (struct condition *cond, struct lock *lock UNUSED)
-{
+void cond_signal (struct condition *cond, struct lock *lock UNUSED) {
     ASSERT (cond != NULL);
     ASSERT (lock != NULL);
     ASSERT (!intr_context ());
@@ -388,8 +385,6 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
     if (!list_empty (&cond->waiters)) {
         sema_up(&find_cond_highest_priority(&cond->waiters)->semaphore);
     }
-        /*sema_up (&list_entry (list_pop_front (&cond->waiters),*/
-                            /*struct semaphore_elem, elem)->semaphore);*/
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
