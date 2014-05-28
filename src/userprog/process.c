@@ -54,7 +54,6 @@ process_execute (const char *file_name)
      running. */
 static void
 start_process (void *file_name_) {
-    printf("starting process=======\n");
     char *file_name = file_name_;
     struct intr_frame if_;
     bool success;
@@ -91,9 +90,9 @@ start_process (void *file_name_) {
      This function will be implemented in problem 2-2.    For now, it
      does nothing. */
 int
-process_wait (tid_t child_tid UNUSED)
-{
-    return -1;
+process_wait (tid_t child_tid UNUSED) {
+    //TODO: wait for the child
+    while(true);
 }
 
 /* Free the current process's resources. */
@@ -438,7 +437,6 @@ setup_stack (void **esp, const char* cmdline){
     char* token;
     char* saveptr;
 
-    printf("======setup_stack: %s=============\n", cmdline);
     kpage = palloc_get_page (PAL_USER | PAL_ZERO);
     if (kpage != NULL) {
         success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
@@ -448,12 +446,13 @@ setup_stack (void **esp, const char* cmdline){
             palloc_free_page (kpage);
     }
 
+    printf("Cmdline: %s\n", cmdline);
     token = strtok_r((char*) cmdline, " ", &saveptr);
     while(token!=NULL) {
         printf("Cur token %s\n", token);
         *esp -= strlen(token) + 1;
         memcpy(*esp, token, strlen(token) + 1);
-        token = strtok_r((char*) cmdline, " ", &saveptr);
+        token = strtok_r(NULL, " ", &saveptr);
     }
 
     return success;
