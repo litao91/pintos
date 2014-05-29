@@ -10,7 +10,7 @@
 
 static void syscall_handler (struct intr_frame *);
 /*static int get_byte_user(const uint8_t *uaddr);*/
-static int get_word_user(const uint8_t *uaddr);
+static int get_word_user(const uint32_t *uaddr); // int is a word
 /*static bool put_byte_user(uint8_t *udst, uint8_t byte);*/
 
 static int* get_argv(struct intr_frame* f, int argc);
@@ -80,8 +80,8 @@ syscall_init (void)
  */
 static void
 syscall_handler (struct intr_frame *f){
-  printf ("system call!\n");
-  int syscall_num = get_word_user(f->esp);
+  //printf ("system call!\n");
+  int syscall_num = get_word_user((uint32_t*)f->esp + 1);
   if(syscall_num < 0 && syscall_num >= SYSCALL_NUM) {
       exit(-1);
   }
@@ -120,6 +120,7 @@ static void sys_read(struct intr_frame* f UNUSED) {
 static void sys_write(struct intr_frame* f UNUSED) {
     int argc = 3;
     int* argv = get_argv(f, argc);
+    printf("writing to %d\n", argv[1]);
     if(argv[1] == 0) {
     } else if(argv[1] == 1) { // write to console
         uint8_t* buffer = (uint8_t *) argv[2];
@@ -190,7 +191,8 @@ static int* get_argv(struct intr_frame* f, int argc) {
 
     int i;
     for(i = 0; i <= argc; i++) {
-        argv[i] = get_word_user(f->esp);
+        argv[i] = get_word_user((uint32_t*) f->esp + 1);
+        //printf("arg[%d]: %d\n",i ,argv[i]);
         if(argv[i] == -1) {
             exit(-1);
         }
@@ -215,7 +217,7 @@ static int* get_argv(struct intr_frame* f, int argc) {
     /*return result;*/
 /*}*/
 
-static int get_word_user(const uint8_t *uaddr) {
+static int get_word_user(const uint32_t *uaddr) {
     int result;
     if((void*)uaddr >= PHYS_BASE) {
         exit(-1);

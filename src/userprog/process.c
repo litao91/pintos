@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -28,7 +29,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name)
 {
-    printf("executing %s\n", file_name);
+    //printf("executing %s\n", file_name);
     char *fn_copy;
     tid_t tid;
 
@@ -57,18 +58,80 @@ start_process (void *file_name_) {
     char *file_name = file_name_;
     struct intr_frame if_;
     bool success;
+    char* saveptr;
+    char* token;
 
     /* Initialize interrupt frame and load executable. */
     memset (&if_, 0, sizeof if_);
     if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
     if_.cs = SEL_UCSEG;
     if_.eflags = FLAG_IF | FLAG_MBS;
-    success = load (file_name, &if_.eip, &if_.esp);
+
+    char* exec_file_name = strtok_r(file_name, " ", &saveptr);
+
+    success = load (exec_file_name, &if_.eip, &if_.esp);
 
     /* If load failed, quit. */
-    palloc_free_page (file_name);
     if (!success)
         thread_exit ();
+
+    //TODO refine the memory allocation
+    char** argv = malloc((strlen(file_name) + 1) * sizeof(char));
+    int argc = 0;
+    //just make sure enough space
+    int arg_length_sum = 0;
+    token = exec_file_name;
+    while(token != NULL) {
+        argv[argc++] = token;
+        arg_length_sum += strlen(token) + 1;
+        token = strtok_r(NULL, " ", &saveptr);
+    }
+
+    int i;
+    int len;
+
+    void** addresses = malloc(sizeof(void*) * argc);
+
+    // push the arguments to the stack
+    for(i = argc - 1; i >= 0; i--) {
+        len = strlen(argv[i]) + 1;
+        if_.esp -= len;
+        addresses[i] = if_.esp;
+        memcpy(if_.esp, argv[i], len);
+    }
+
+    // align
+    int word_align_offset = arg_length_sum % 4;
+    // a word is 32bits (4 bytes) for 32bit machine
+    if_.esp -= word_align_offset != 0 ? 4 - word_align_offset: 0;
+
+    // push 0 sentinel argument
+    if_.esp -= 4;
+    *(int *) if_.esp = 0;
+
+    //adding argv
+    for(i = argc - 1; i >= 0; i--) {
+        if_.esp -= 4;
+        // assign the address
+        *(void **) (if_.esp) = addresses[i];
+    }
+
+    if_.esp -= 4;
+    *(char**) if_.esp = if_.esp + 4;
+
+    //adding argc
+    if_.esp -= 4;
+    *(int *) if_.esp = argc;
+
+    //adding fake return address
+    if_.esp -= 4;
+    *(int *) if_.esp = 0;
+
+    // deallocate memory
+    free(argv);
+    free(addresses);
+    palloc_free_page (file_name);
+
 
     /* Start the user process by simulating a return from an
          interrupt, implemented by intr_exit (in
@@ -199,7 +262,7 @@ struct Elf32_Phdr
 #define PF_W 2                    /* Writable. */
 #define PF_R 4                    /* Readable. */
 
-static bool setup_stack (void **esp, const char* cmdline);
+static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                                                     uint32_t read_bytes, uint32_t zero_bytes,
@@ -306,7 +369,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
 
     /* Set up stack. */
-    if (!setup_stack (esp, file_name))
+    if (!setup_stack (esp))
         goto done;
 
     /* Start address. */
@@ -315,6 +378,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     success = true;
 
  done:
+    printf("load done\n");
     /* We arrive here whether the load is successful or not. */
     file_close (file);
     return success;
@@ -431,11 +495,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
      user virtual memory. */
 static bool
-setup_stack (void **esp, const char* cmdline){
+setup_stack (void **esp){
     uint8_t *kpage;
     bool success = false;
-    char* token;
-    char* saveptr;
 
     kpage = palloc_get_page (PAL_USER | PAL_ZERO);
     if (kpage != NULL) {
@@ -445,16 +507,6 @@ setup_stack (void **esp, const char* cmdline){
         else
             palloc_free_page (kpage);
     }
-
-    printf("Cmdline: %s\n", cmdline);
-    token = strtok_r((char*) cmdline, " ", &saveptr);
-    while(token!=NULL) {
-        printf("Cur token %s\n", token);
-        *esp -= strlen(token) + 1;
-        memcpy(*esp, token, strlen(token) + 1);
-        token = strtok_r(NULL, " ", &saveptr);
-    }
-
     return success;
 }
 
