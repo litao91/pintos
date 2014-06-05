@@ -340,7 +340,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 }
 
 static void setup_args(void** esp, const char* args) {
-    printf("setting up command line arguments, command line: %s\n", args);
+    //printf("setting up command line arguments, command line: %s\n", args);
     int arg_len = strlen(args) + 1;
     *esp -= arg_len;
 
@@ -389,7 +389,6 @@ static void setup_args(void** esp, const char* args) {
     //fake return
     *esp -= 4;
     *(int *) *esp = 0;
-
 }
 /* load() helpers. */
 
